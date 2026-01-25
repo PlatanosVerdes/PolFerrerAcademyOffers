@@ -26,14 +26,18 @@ def remove_user(user_id):
         _write(data)
 
 
-def save_offers(new_offers):
-    data = _read()
-    data["offers"] = new_offers
-    _write(data)
+def save_offers(offers, date_range):
+    data = {"offers": offers, "date_range": date_range}
+    with open("offers_cache.json", "w") as f:
+        json.dump(data, f)
 
 
-def load_offers():
-    return _read().get("offers", [])
+def load_cached_offers():
+    if not os.path.exists("offers_cache.json"):
+        return [], "desconocidas"
+    with open("offers_cache.json", "r") as f:
+        data = json.load(f)
+        return data.get("offers", []), data.get("date_range", "desconocidas")
 
 
 def get_users():

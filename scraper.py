@@ -11,104 +11,86 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Mapa para traducir el texto del JSON a tus Emojis
 JSON_DISCIPLINE_MAP = {
     "wheelie": "Wheelie 🟢",
     "drift": "Drift 🔴",
     "offroad": "Off-road 🟠",
     "stoppie": "Stoppie 🔵",
     "asphalt": "Asfalto ⚪",
-    "racing": "Racing 🏁",
 }
 
-
 def get_new_offers():
-    """Fetches the site and returns only the active offers."""
+    """Fetches the site and returns active offers and the detected range."""
     try:
         response = requests.get(URL_POL, headers=HEADERS, timeout=15)
         response.raise_for_status()
 
-        # Ahora extraemos los datos crudos, que contienen TODAS las semanas
-        items = _extract_hidden_json_data(response.text)
+        # Extraemos los datos del JSON oculto
+        offers = _extract_hidden_json_data(response.text)
+        
+        # Intentamos sacar el rango de fechas para el mensaje "vacio"
+        # Usamos la primera y última oferta si existen como referencia
+        if offers:
+            date_range = f"del {offers[0]['date']} al {offers[-1]['date']}"
+        else:
+            date_range = "próximas semanas"
 
-        # Filtramos solo lo que sea Wheelie (o lo que quieras)
-        # Nota: En el JSON, todo lo que está en la lista "offers" ES una oferta.
-        return [i for i in items if "Wheelie" in i["discipline"]]
+        return offers, date_range
 
     except Exception as e:
         logger.error(f"Scraping failed: {e}")
-        return []
-
+        return [], "Error"
 
 def _extract_hidden_json_data(html_content):
-    """
-    Extrae los datos ocultos del JSON de Next.js en lugar de mirar los divs.
-    Esto permite ver ofertas de meses futuros sin hacer click.
-    """
     found_items = []
-
-    # 1. Buscamos el patrón donde se guardan los datos: "offers":[ ... ]
-    # Esto es mucho más robusto que buscar clases CSS que pueden cambiar
+    # Buscamos el objeto "offers" dentro del script de Next.js
     patron = r'"offers":(\[.*?\]),"rates"'
     coincidencia = re.search(patron, html_content)
 
     if not coincidencia:
-        logger.warning("No se encontraron datos internos (JSON) en el HTML.")
+        logger.warning("No internal JSON data found in HTML.")
         return []
 
-    # 2. Limpiamos el JSON (Next.js pone símbolos raros como $D antes de las fechas)
-    datos_crudos = coincidencia.group(1)
-    json_limpio = datos_crudos.replace('"$D', '"')
+    json_limpio = coincidencia.group(1).replace('"$D', '"')
 
     try:
         lista_ofertas = json.loads(json_limpio)
     except json.JSONDecodeError:
-        logger.error("Error al interpretar el JSON oculto.")
+        logger.error("Error decoding hidden JSON.")
         return []
 
-    # 3. Procesamos la lista limpia
     for item in lista_ofertas:
-        # --- Formatear Fecha ---
+        # Fecha
         fecha_raw = item.get("date", "")
         try:
-            # Quitamos la 'Z' y parseamos. Ejemplo: 2026-01-23T00:00:00.000Z
             dt_object = datetime.fromisoformat(fecha_raw.replace("Z", ""))
-            # Formato legible: 23 ene
             fecha_bonita = dt_object.strftime("%d %b")
-        except ValueError:
+        except:
             fecha_bonita = fecha_raw
 
-        # --- Formatear Precio ---
-        # El precio viene en centimos (5000 = 50.00)
+        # Precio
         cents = item.get("cents", 0)
         precio_fmt = f"{cents / 100:.0f}€"
 
-        # --- Mapear Disciplina ---
+        # Disciplina
         raw_discipline = item.get("discipline", "unknown")
         discipline_display = JSON_DISCIPLINE_MAP.get(
             raw_discipline, f"{raw_discipline.capitalize()} ❓"
         )
 
-        # Construimos el objeto igual que lo hacías tú antes
-        found_items.append(
-            {
-                "is_offer": True,  # Si está en esta lista JSON, ES una oferta
-                "discipline": discipline_display,
-                "date": fecha_bonita,
-                "time": f"{item.get('hour')}:00",  # La hora viene como entero (ej: 17)
-                "price": precio_fmt,
-            }
-        )
+        found_items.append({
+            "is_offer": True,
+            "discipline": discipline_display,
+            "date": fecha_bonita,
+            "time": f"{item.get('hour')}:00",
+            "price": precio_fmt,
+        })
 
-    # Ordenamos por fecha para que salga bonito
-    # (Necesitamos volver a parsear la fecha para ordenar, o confiar en el orden del json)
-    # Aquí simplemente devolvemos la lista tal cual
     return found_items
 
-
-def format_offer_message(offers):
+def format_offer_message(offers, date_range):
     if not offers:
-        return "No hay ofertas disponibles en este momento."
+        return f"🔎 No hay ofertas disponibles para las fechas detectadas (<b>{date_range}</b>)."
 
     msg = ["🚨 <b>¡NUEVAS OFERTAS DETECTADAS!</b> 🚨", ""]
 
@@ -120,9 +102,3 @@ def format_offer_message(offers):
 
     msg.append(f'🔗 <a href="{URL_POL}">Reservar plaza</a>')
     return "\n".join(msg)
-
-
-# --- PRUEBA RÁPIDA (Solo para ejecutar este fichero) ---
-if __name__ == "__main__":
-    ofertas = get_new_offers()
-    print(format_offer_message(ofertas))

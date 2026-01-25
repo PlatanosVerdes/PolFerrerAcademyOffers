@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from pydoc import text
 import aiocron
 from dotenv import load_dotenv
 
@@ -17,7 +18,7 @@ from telegram.ext import (
 import scraper
 import database
 
-REFRESH_INTERVAL_MINUTES = 10
+REFRESH_INTERVAL_MINUTES = 1
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -30,31 +31,36 @@ TOKEN = os.getenv("BOT_TOKEN")
 
 @aiocron.crontab(f"*/{REFRESH_INTERVAL_MINUTES} * * * *")
 async def scheduled_scan():
-    logger.info("Cron: Starting scheduled scan for new offers...")
-    offers = scraper.get_new_offers()
+    logger.info("Cron: Scanning for new offers...")
+    offers, date_range = scraper.get_new_offers()
+
+    # Guardamos siempre lo último detectado en la caché
+    database.save_offers(offers, date_range)
 
     if offers:
-        database.save_offers(offers)
-        users = database.get_users()
-        text = scraper.format_offer_message(offers)
-
+        users = database.load_subscribers()  # Usamos tu función de subscribers.json
+        text = scraper.format_offer_message(offers, date_range)
         for user_id in users:
-            try:
-                await app.bot.send_message(
-                    chat_id=user_id, text=text, parse_mode="HTML"
-                )
-            except Exception as e:
-                logger.error(f"Error al enviar a {user_id}: {e}")
+            await send_async_message(user_id, text)  # O usar app.bot.send_message
     else:
         logger.info("Cron: No new offers found.")
+
+
+async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"User {update.effective_chat.id} requested offers from database.")
+
+    # LEER DE LA BASE DE DATOS, NO DEL SCRAPER
+    current_offers, date_range = database.load_cached_offers()
+
+    text = scraper.format_offer_message(current_offers, date_range)
+    await update.message.reply_text(text, parse_mode="HTML")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     database.add_user(user_id)
     await update.message.reply_text(
-        f"✅ <b>¡Suscrito correctamente!</b> Te avisaré cuando detecte ofertas de wheelie cada {REFRESH_INTERVAL_MINUTES} min.",
-        parse_mode="HTML",
+        f"✅ <b>¡Suscrito correctamente!</b> Te avisaré cuando detecte nuevas ofertas.",
     )
 
 
@@ -65,12 +71,6 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔕 <b>Suscripción cancelada.</b> Ya no recibirás más alertas.",
         parse_mode="HTML",
     )
-
-
-async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    current_offers = database.load_offers()
-    text = scraper.format_offer_message(current_offers)
-    await update.message.reply_text(text, parse_mode="HTML")
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
