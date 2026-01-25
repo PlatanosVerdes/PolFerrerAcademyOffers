@@ -61,6 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     database.add_user(user_id)
     await update.message.reply_text(
         f"✅ <b>¡Suscrito correctamente!</b> Te avisaré cuando detecte nuevas ofertas.",
+        parse_mode="HTML",
     )
 
 
