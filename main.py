@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Main")
 
-load_dotenv()  # TODO: Remove if not used
+# load_dotenv()  # TODO: Remove if not used
 TOKEN = os.getenv("BOT_TOKEN")
 
 
@@ -76,7 +76,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
-        "🤖 <b>Ayuda de Wheelie Hunter</b>\n\n"
+        "🤖 <b>Pol Academy Offers Hunter</b>\n\n"
         "Este bot escanea la academia de Pol Ferrer cada 10 minutos buscando ofertas.\n\n"
         "<b>Comandos disponibles:</b>\n"
         "• /start - Suscribirse a las alertas automáticas.\n"
