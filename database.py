@@ -27,17 +27,29 @@ def remove_user(user_id):
 
 
 def save_offers(offers, date_range):
-    data = {"offers": offers, "date_range": date_range}
+    data = {"offers": offers, "date_range": date_range, "notified_offers": []}
+    # Preserve existing notified offers
+    if os.path.exists("offers_cache.json"):
+        try:
+            with open("offers_cache.json", "r") as f:
+                existing = json.load(f)
+                data["notified_offers"] = existing.get("notified_offers", [])
+        except:
+            pass
     with open("offers_cache.json", "w") as f:
         json.dump(data, f)
 
 
 def load_cached_offers():
     if not os.path.exists("offers_cache.json"):
-        return [], "desconocidas"
+        return [], "unknown", []
     with open("offers_cache.json", "r") as f:
         data = json.load(f)
-        return data.get("offers", []), data.get("date_range", "desconocidas")
+        return (
+            data.get("offers", []),
+            data.get("date_range", "unknown"),
+            data.get("notified_offers", []),
+        )
 
 
 def get_users():
@@ -53,6 +65,18 @@ def _read():
         return {"users": [], "offers": []}
 
 
-def _write(data):
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+def mark_offers_as_notified(offer_ids):
+    """Mark offers as already notified to avoid duplicate alerts."""
+    if not os.path.exists("offers_cache.json"):
+        return
+    try:
+        with open("offers_cache.json", "r") as f:
+            data = json.load(f)
+        # Add new offer IDs to the notified list (avoid duplicates)
+        existing_notified = set(data.get("notified_offers", []))
+        existing_notified.update(offer_ids)
+        data["notified_offers"] = list(existing_notified)
+        with open("offers_cache.json", "w") as f:
+            json.dump(data, f)
+    except:
+        pass

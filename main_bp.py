@@ -6,7 +6,6 @@ import json
 import os
 
 # --- ⚙️ CONFIGURACIÓN ---
-
 TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
 
 CHECK_INTERVAL_MINUTES = 60  # Escanear la web cada 60 min

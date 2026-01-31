@@ -1,7 +1,5 @@
-import asyncio
 import logging
 import os
-from pydoc import text
 import aiocron
 from dotenv import load_dotenv
 
@@ -25,23 +23,57 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Main")
 
-# load_dotenv()  # TODO: Remove if not used
+load_dotenv()  # TODO: Remove if not used
 TOKEN = os.getenv("BOT_TOKEN")
+
+# Global application instance
+app = None
+
+
+def generate_offer_id(offer):
+    """Generate a unique ID for an offer based on its details."""
+    return (
+        f"{offer.get('discipline', '')}_{offer.get('date', '')}_{offer.get('time', '')}"
+    )
 
 
 @aiocron.crontab(f"*/{REFRESH_INTERVAL_MINUTES} * * * *")
 async def scheduled_scan():
     logger.info("Cron: Scanning for new offers...")
-    offers, date_range = scraper.get_new_offers()
+    all_items, date_range = scraper.get_new_offers()
 
-    # Guardamos siempre lo último detectado en la caché
+    # Filter only offers (is_offer == True)
+    offers = [item for item in all_items if item.get("is_offer", False)]
+
+    # Load previously notified offers
+    _, _, notified_offer_ids = database.load_cached_offers()
+
+    # Find new offers that haven't been notified yet
+    new_offers = []
+    new_offer_ids = []
+    for offer in offers:
+        offer_id = generate_offer_id(offer)
+        if offer_id not in notified_offer_ids:
+            new_offers.append(offer)
+            new_offer_ids.append(offer_id)
+
+    # Save all offers (for the /offers command)
     database.save_offers(offers, date_range)
 
-    if offers:
-        users = database.load_subscribers()  # Usamos tu función de subscribers.json
-        text = scraper.format_offer_message(offers, date_range)
+    # Send notifications only for NEW offers
+    if new_offers:
+        logger.info(f"Found {len(new_offers)} new offers to notify")
+        users = database.get_users()
+        text = scraper.format_offer_message(new_offers)
         for user_id in users:
-            await send_async_message(user_id, text)  # O usar app.bot.send_message
+            try:
+                await app.bot.send_message(
+                    chat_id=user_id, text=text, parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.error(f"Error sending message to {user_id}: {e}")
+        # Mark these offers as notified
+        database.mark_offers_as_notified(new_offer_ids)
     else:
         logger.info("Cron: No new offers found.")
 
@@ -49,10 +81,10 @@ async def scheduled_scan():
 async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"User {update.effective_chat.id} requested offers from database.")
 
-    # LEER DE LA BASE DE DATOS, NO DEL SCRAPER
-    current_offers, date_range = database.load_cached_offers()
+    # READ FROM DATABASE, NOT FROM SCRAPER
+    current_offers, date_range, _ = database.load_cached_offers()
 
-    text = scraper.format_offer_message(current_offers, date_range)
+    text = scraper.format_offer_message(current_offers)
     await update.message.reply_text(text, parse_mode="HTML")
 
 
