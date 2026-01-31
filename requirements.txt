@@ -1,6 +1,5 @@
 aiocron==1.8
 anyio==4.5.2
-backports.zoneinfo==0.2.1
 beautifulsoup4==4.14.3
 certifi==2026.1.4
 charset-normalizer==3.4.4
