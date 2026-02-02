@@ -113,7 +113,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 <b>Pol Academy Offers Hunter</b>\n\n"
-        "Este bot escanea la academia de Pol Ferrer cada 10 minutos buscando ofertas.\n\n"
+        f"Este bot escanea la academia de Pol Ferrer cada {REFRESH_INTERVAL_MINUTES} minutos buscando ofertas.\n\n"
         "<b>Comandos disponibles:</b>\n"
         "• /start - Suscribirse a las alertas automáticas.\n"
         "• /offers - Ver las ofertas activas actualmente.\n"
