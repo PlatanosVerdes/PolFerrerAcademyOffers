@@ -23,8 +23,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Main")
 
-load_dotenv()  # TODO: Remove if not used
+# load_dotenv()  # TODO: Remove if not used
 TOKEN = os.getenv("BOT_TOKEN")
+
+if not TOKEN:
+    logger.error("Error: BOT_TOKEN not found in environment variables.")
+    exit(1)
 
 # Global application instance
 app = None
