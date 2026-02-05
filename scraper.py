@@ -3,7 +3,7 @@ import json
 import re
 import logging
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 
 # Configure Logger
 logger = logging.getLogger("Scraper")
@@ -20,23 +20,30 @@ OFFERS_PATTERN = re.compile(r'\\?"offers\\?":\s*(\[\{.*?\}\])')
 def _process_offer(raw_item: Dict) -> Dict[str, str]:
     """
     Internal helper: Parses a single raw offer item, calculates the real price, 
-    and formats the date.
+    and formats the date and time correctly.
     """
-    # 1. Price Calculation
-    # JSON contains the deposit (50%). We multiply by 2 for the full price.
+    # 1. Price Calculation (Deposit x 2)
     deposit_cents = raw_item.get("cents", 0)
     total_price_euro = (deposit_cents * 2) / 100
 
-    # 2. Date Parsing
+    # 2. Date & Time Parsing
     raw_date = raw_item.get("date", "")
+    raw_hour = raw_item.get("hour") # <-- AQUÍ ESTÁ LA HORA REAL (int)
+
     try:
-        # Handle ISO format. Replace Z with +00:00 for compatibility
+        # Parse date
         dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
         formatted_date = dt.strftime("%Y-%m-%d")
-        formatted_time = dt.strftime("%H:%M")
+        
+        # Parse time: Use 'hour' field if available, otherwise use ISO time
+        if raw_hour is not None:
+            formatted_time = f"{int(raw_hour):02d}:00" # Convierte 17 -> "17:00"
+        else:
+            formatted_time = dt.strftime("%H:%M")
+
     except ValueError:
         formatted_date = raw_date
-        formatted_time = "??"
+        formatted_time = f"{raw_hour}:00" if raw_hour is not None else "??"
 
     return {
         "is_offer": True,
@@ -78,9 +85,7 @@ def get_new_offers() -> Tuple[List[Dict], str]:
         # Process offers using list comprehension
         found_items = [_process_offer(item) for item in raw_offers_data]
 
-        # Generate summary string for logs
         summary = f"{len(found_items)} ofertas encontradas" if found_items else "Sin ofertas"
-
         logger.info(f"✅ Analysis complete. {summary}")
         return found_items, summary
 
@@ -94,12 +99,11 @@ def get_new_offers() -> Tuple[List[Dict], str]:
 
 def format_offer_message(offers: List[Dict]) -> str:
     """
-    Formats the list of offers into an HTML message for Telegram (in Spanish).
+    Formats the list of offers into an HTML message for Telegram.
     """
     if not offers:
         return "🔎 No hay ofertas disponibles en este momento."
 
-    # Using a list of strings is more efficient than string concatenation
     lines = ["🚨 <b>¡NUEVAS OFERTAS DETECTADAS!</b> 🚨", ""]
     
     for offer in offers:
