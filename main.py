@@ -124,7 +124,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def post_init(application):
-    """Configura el menú de comandos automáticamente al arrancar."""
+    """Configure bot commands after the application has been initialized."""
     commands = [
         BotCommand("start", "Suscribirse a las alertas"),
         BotCommand("offers", "Ver ofertas actuales"),
