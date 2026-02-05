@@ -32,15 +32,15 @@ def get_new_offers():
         response = requests.get(URL_POL, headers=HEADERS, timeout=15)
         response.raise_for_status()
 
-        # Extraemos los datos del JSON oculto
-        offers = _extract_hidden_json_data(response.text)
+        # Extract offers data
+        offers = _extract_offers(response.text)
 
-        # Intentamos sacar el rango de fechas para el mensaje "vacio"
-        # Usamos la primera y última oferta si existen como referencia
+        # Try to extract date range for the "empty" message
+        # Use the first and last offer if they exist as reference
         if offers:
-            date_range = f"del {offers[0]['date']} al {offers[-1]['date']}"
+            date_range = f"from {offers[0]['date']} to {offers[-1]['date']}"
         else:
-            date_range = "próximas semanas"
+            date_range = "upcoming weeks"
 
         return offers, date_range
 
@@ -49,28 +49,28 @@ def get_new_offers():
         return [], "Error"
 
 
-def _extract_hidden_json_data(html_content):
-    """Extrae ofertas usando BeautifulSoup (método que funciona de main_bp.py)"""
+def _extract_offers(html_content):
+    """Extracts offers from the HTML content and returns a list of offers."""
     soup = BeautifulSoup(html_content, "html.parser")
     found_items = []
 
-    # 1. Encontrar todas las filas de la matriz (Tailwind class 'grid-cols-8')
+    # 1. Find all matrix rows (Tailwind class 'grid-cols-8')
     grid_rows = soup.find_all("div", class_="grid-cols-8")
 
     if not grid_rows:
         logger.warning(
-            "No 'grid-cols-8' rows found. La estructura HTML puede haber cambiado."
+            "No 'grid-cols-8' rows found. The HTML structure may have changed."
         )
         return []
 
     logger.debug(
-        f"Estructura: Encontrados {len(grid_rows)} filas en la matriz del calendario."
+        f"Structure: Found {len(grid_rows)} rows in the calendar matrix."
     )
 
-    # Diccionario para mapear Índice de Columna (1-7) -> Fecha
+    # Dictionary to map Column Index (1-7) -> Date
     col_date_map = {}
 
-    # --- PROCESAR FILAS ---
+    # --- PROCESS ROWS ---
     for row_index, row in enumerate(grid_rows):
         # Obtener hijos inmediatos (Las 8 celdas de la fila)
         cells = row.find_all(True, recursive=False)
@@ -94,24 +94,24 @@ def _extract_hidden_json_data(html_content):
 
                 col_date_map[col_idx] = date_text
 
-            # Mostrar la semana detectada
+            # Display detected week
             start_date = col_date_map.get(1, "?")
             end_date = col_date_map.get(7, "?")
-            logger.info(f"📅 SEMANA DETECTADA: Del [{start_date}] al [{end_date}]")
+            logger.info(f"📅 DETECTED WEEK: From [{start_date}] to [{end_date}]")
             continue
 
-        # --- FILA > 0: FRANJAS HORARIAS ---
-        # 1. Obtener etiqueta de tiempo (Columna 0)
+        # --- ROW > 0: TIME SLOTS ---
+        # 1. Get time label (Column 0)
         time_text = cells[0].get_text("", strip=True)
 
-        # 2. Verificar Columnas 1-7 (Días de la semana)
+        # 2. Check Columns 1-7 (Days of the week)
         for col_idx in range(1, 8):
             if col_idx >= len(cells):
                 break
 
             element = cells[col_idx]
 
-            # Identificar si hay un botón (Franja activa)
+            # Identify if there's a button (Active slot)
             button = None
             if element.name == "button":
                 button = element
@@ -121,28 +121,28 @@ def _extract_hidden_json_data(html_content):
             if button:
                 classes = button.get("class", [])
 
-                # A. Identificar Disciplina
+                # A. Identify Discipline
                 discipline = "Unknown"
                 for css, name in DISCIPLINE_MAP.items():
                     if css in classes:
                         discipline = name
                         break
 
-                # B. Obtener contenido de texto
+                # B. Get text content
                 text_content = button.get_text(" ", strip=True)
 
-                # C. Verificar si es una OFERTA
+                # C. Check if it's an OFFER
                 is_offer = "Oferta" in text_content or "Offer" in text_content
 
-                # D. Extraer Precio
+                # D. Extract Price
                 price_span = button.find("span")
                 price = price_span.get_text(strip=True) if price_span else "N/A"
 
                 if discipline != "Unknown":
-                    # Loguear si es una oferta para debug
+                    # Log if it's an offer for debugging
                     if is_offer:
                         logger.info(
-                            f"⚡ OFERTA ENCONTRADA! {discipline} el {col_date_map.get(col_idx)} a las {time_text}"
+                            f"⚡ OFFER FOUND! {discipline} on {col_date_map.get(col_idx)} at {time_text}"
                         )
 
                     found_items.append(
@@ -160,9 +160,9 @@ def _extract_hidden_json_data(html_content):
 
 def format_offer_message(offers):
     if not offers:
-        return f"🔎 No hay ofertas disponibles por el momento."
+        return f"🔎 No offers available at the moment. Please check {URL_POL}."
 
-    msg = ["🚨<b>¡NUEVAS OFERTAS!</b>🚨", ""]
+    msg = ["🚨<b>NEW OFFERS!</b>🚨", ""]
 
     for o in offers:
         msg.append(
@@ -170,5 +170,5 @@ def format_offer_message(offers):
             f"🏍️ {o['discipline']} - 💰 <b>{o['price']}</b>\n"
         )
 
-    msg.append(f'🔗 <a href="{URL_POL}">Reservar plaza</a>')
+    msg.append(f'🔗 <a href="{URL_POL}">Book your slot</a>')
     return "\n".join(msg)
