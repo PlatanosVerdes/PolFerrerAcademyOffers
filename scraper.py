@@ -19,7 +19,7 @@ OFFERS_PATTERN = re.compile(r'\\?"offers\\?":\s*(\[\{.*?\}\])')
 
 def _process_offer(raw_item: Dict) -> Dict[str, str]:
     """
-    Internal helper: Parses a single raw offer item, calculates the real price, 
+    Internal helper: Parses a single raw offer item, calculates the real price,
     and formats the date and time correctly.
     """
     # 1. Price Calculation (Deposit x 2)
@@ -28,16 +28,16 @@ def _process_offer(raw_item: Dict) -> Dict[str, str]:
 
     # 2. Date & Time Parsing
     raw_date = raw_item.get("date", "")
-    raw_hour = raw_item.get("hour") # <-- AQUÍ ESTÁ LA HORA REAL (int)
+    raw_hour = raw_item.get("hour")
 
     try:
         # Parse date
         dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
         formatted_date = dt.strftime("%Y-%m-%d")
-        
+
         # Parse time: Use 'hour' field if available, otherwise use ISO time
         if raw_hour is not None:
-            formatted_time = f"{int(raw_hour):02d}:00" # Convierte 17 -> "17:00"
+            formatted_time = f"{int(raw_hour):02d}:00"
         else:
             formatted_time = dt.strftime("%H:%M")
 
@@ -51,14 +51,14 @@ def _process_offer(raw_item: Dict) -> Dict[str, str]:
         "date": formatted_date,
         "time": formatted_time,
         "price": f"{total_price_euro:.0f}€",
-        "original_date": raw_date
+        "original_date": raw_date,
     }
 
 
 def get_new_offers() -> Tuple[List[Dict], str]:
     """
     Main function called by main.py.
-    Fetches the website, extracts the hidden JSON data using Regex, 
+    Fetches the website, extracts the hidden JSON data using Regex,
     and parses available offers.
     """
     try:
@@ -68,14 +68,14 @@ def get_new_offers() -> Tuple[List[Dict], str]:
 
         # Extract the specific JSON block using Regex
         match = OFFERS_PATTERN.search(response.text)
-        
+
         if not match:
             logger.warning("⚠️ 'offers' block not found in HTML.")
             return [], "No data found"
 
         # Clean Next.js artifacts (escaped quotes and $D prefixes)
-        clean_json = match.group(1).replace('\\"', '"').replace('$D', '')
-        
+        clean_json = match.group(1).replace('\\"', '"').replace("$D", "")
+
         try:
             raw_offers_data = json.loads(clean_json)
         except json.JSONDecodeError as e:
@@ -85,7 +85,9 @@ def get_new_offers() -> Tuple[List[Dict], str]:
         # Process offers using list comprehension
         found_items = [_process_offer(item) for item in raw_offers_data]
 
-        summary = f"{len(found_items)} ofertas encontradas" if found_items else "Sin ofertas"
+        summary = (
+            f"{len(found_items)} ofertas encontradas" if found_items else "Sin ofertas"
+        )
         logger.info(f"✅ Analysis complete. {summary}")
         return found_items, summary
 
@@ -104,8 +106,8 @@ def format_offer_message(offers: List[Dict]) -> str:
     if not offers:
         return "🔎 No hay ofertas disponibles en este momento."
 
-    lines = ["🚨 <b>¡NUEVAS OFERTAS DETECTADAS!</b> 🚨", ""]
-    
+    lines = ["🚨 <b>¡NUEVAS OFERTAS!</b> 🚨", ""]
+
     for offer in offers:
         lines.append(
             f"📅 <b>{offer['date']}</b> a las {offer['time']}\n"
@@ -113,5 +115,5 @@ def format_offer_message(offers: List[Dict]) -> str:
         )
 
     lines.append(f'🔗 <a href="{BASE_URL}">Reservar ahora</a>')
-    
+
     return "\n".join(lines)
