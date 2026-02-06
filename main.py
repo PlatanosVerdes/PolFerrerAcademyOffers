@@ -16,14 +16,14 @@ from telegram.ext import (
 import scraper
 import database
 
-REFRESH_INTERVAL_MINUTES = 1
+REFRESH_INTERVAL_MINUTES = 15
+VERSION_RELEASE = "1.2.0"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("Main")
 
-# load_dotenv()  # TODO: Remove if not used
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
@@ -96,7 +96,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     database.add_user(user_id)
     await update.message.reply_text(
-        f"✅ <b>¡Suscrito correctamente!</b> Te avisaré cuando detecte nuevas ofertas.",
+        f"✅ <b>¡Suscrito correctamente!</b> Te avisaré cuando detecte nuevas ofertas.\n\n"
+        f"<i>Bot version: {VERSION_RELEASE}</i>",
         parse_mode="HTML",
     )
 
@@ -118,13 +119,14 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /start - Suscribirse a las alertas automáticas.\n"
         "• /offers - Ver las ofertas activas actualmente.\n"
         "• /stop - Dejar de recibir notificaciones.\n"
-        "• /help - Mostrar este mensaje de ayuda."
+        "• /help - Mostrar este mensaje de ayuda.\n\n"
+        f"<i>Version: {VERSION_RELEASE}</i>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
 
 async def post_init(application):
-    """Configura el menú de comandos automáticamente al arrancar."""
+    """Configure bot commands after the application has been initialized."""
     commands = [
         BotCommand("start", "Suscribirse a las alertas"),
         BotCommand("offers", "Ver ofertas actuales"),
