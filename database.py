@@ -1,5 +1,9 @@
 import json
 import os
+import logging
+from datetime import datetime
+
+logger = logging.getLogger("Database")
 
 DB_FILE = "data/database.json"
 
@@ -26,27 +30,72 @@ def remove_user(user_id):
         _write(data)
 
 
+def _is_current_or_future_offer(offer):
+    """Check if an offer is from today or a future date."""
+    try:
+        offer_date_str = offer.get("date", "")
+        offer_date = datetime.strptime(offer_date_str, "%Y-%m-%d").date()
+        today = datetime.now().date()
+        is_valid = offer_date >= today
+        logger.debug(
+            f"Checking offer {offer_date_str}: {offer_date} >= {today} = {is_valid}"
+        )
+        return is_valid
+    except (ValueError, TypeError) as e:
+        # If date parsing fails, keep the offer to be safe
+        logger.warning(f"Failed to parse date '{offer.get('date', '')}': {e}")
+        return True
+
+
 def save_offers(offers, date_range):
-    data = {"offers": offers, "date_range": date_range, "notified_offers": []}
-    # Preserve existing notified offers
+    # Filter to keep only current and future offers
+    current_offers = [offer for offer in offers if _is_current_or_future_offer(offer)]
+
+    # Generate IDs for current offers
+    current_offer_ids = set(
+        f"{offer.get('discipline', '')}_{offer.get('date', '')}_{offer.get('time', '')}"
+        for offer in current_offers
+    )
+
+    # Preserve only notified IDs that correspond to current/future offers
+    old_notified = []
     if os.path.exists("offers_cache.json"):
         try:
             with open("offers_cache.json", "r") as f:
                 existing = json.load(f)
-                data["notified_offers"] = existing.get("notified_offers", [])
+                old_notified = existing.get("notified_offers", [])
         except:
             pass
+
+    # Keep only notified IDs that are still in current offers
+    cleaned_notified = [nid for nid in old_notified if nid in current_offer_ids]
+
+    data = {
+        "offers": current_offers,
+        "date_range": date_range,
+        "notified_offers": cleaned_notified,
+    }
+
     with open("offers_cache.json", "w") as f:
         json.dump(data, f)
 
 
 def load_cached_offers():
+    """Load cached offers, filtering to keep only current and future ones."""
     if not os.path.exists("offers_cache.json"):
+        logger.debug("No offers_cache.json found")
         return [], "unknown", []
     with open("offers_cache.json", "r") as f:
         data = json.load(f)
+        all_offers = data.get("offers", [])
+        logger.debug(f"Loaded {len(all_offers)} offers from cache, filtering...")
+        # Filter again on load to ensure we only return current/future offers
+        current_offers = [
+            offer for offer in all_offers if _is_current_or_future_offer(offer)
+        ]
+        logger.debug(f"After filtering: {len(current_offers)} current/future offers")
         return (
-            data.get("offers", []),
+            current_offers,
             data.get("date_range", "unknown"),
             data.get("notified_offers", []),
         )
@@ -63,6 +112,12 @@ def _read():
             return json.load(f)
     except:
         return {"users": [], "offers": []}
+
+
+def _write(data):
+    _setup()
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f)
 
 
 def mark_offers_as_notified(offer_ids):

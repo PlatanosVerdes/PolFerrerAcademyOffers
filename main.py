@@ -16,7 +16,9 @@ from telegram.ext import (
 import scraper
 import database
 
-REFRESH_INTERVAL_MINUTES = 15
+load_dotenv()
+
+REFRESH_INTERVAL_MINUTES = 1
 VERSION_RELEASE = "1.2.0"
 
 logging.basicConfig(
@@ -87,6 +89,12 @@ async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # READ FROM DATABASE, NOT FROM SCRAPER
     current_offers, date_range, _ = database.load_cached_offers()
+
+    logger.info(f"Loaded {len(current_offers)} current/future offers from cache")
+    for offer in current_offers:
+        logger.info(
+            f"  - {offer.get('date')} {offer.get('time')} - {offer.get('discipline')}"
+        )
 
     text = scraper.format_offer_message(current_offers)
     await update.message.reply_text(text, parse_mode="HTML")

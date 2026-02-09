@@ -110,7 +110,7 @@ def format_offer_message(offers: List[Dict]) -> str:
 
     for offer in offers:
         lines.append(
-            f"📅 <b>{offer['date']}</b> a las {offer['time']}\n"
+            f"📅 <b>{offer['date']}</b> a las <b>{offer['time']}</b>\n"
             f"🏍️ {offer['discipline']} - 💰 <b>{offer['price']}</b>\n"
         )
 

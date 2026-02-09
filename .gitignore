@@ -1,3 +1,5 @@
+*.json
+
 # Data files
 data/*
 # Byte-compiled / optimized / DLL files
