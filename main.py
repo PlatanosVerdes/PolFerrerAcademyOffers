@@ -16,10 +16,10 @@ from telegram.ext import (
 import scraper
 import database
 
-load_dotenv()
+# load_dotenv()
 
-REFRESH_INTERVAL_MINUTES = 1
-VERSION_RELEASE = "1.2.0"
+REFRESH_INTERVAL_MINUTES = 15
+VERSION_RELEASE = "1.2.1"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
