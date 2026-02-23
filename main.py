@@ -86,7 +86,19 @@ async def scheduled_scan():
 
 
 async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"User {update.effective_chat.id} requested offers from database.")
+    user_id = update.effective_chat.id
+    logger.info(f"User {user_id} requested offers from database.")
+
+    users = database.get_users()
+    if user_id not in users:
+        database.add_user(user_id)
+        logger.info(f"Usuario {user_id} auto-suscrito al usar /offers")
+
+        # Le avisamos sutilmente de que le hemos suscrito para que no se asuste cuando le llegue el cron
+        await update.message.reply_text(
+            "✅ <i>He notado que no estabas en la lista de alertas. Te he suscrito automáticamente. Usa /stop si no quieres recibir avisos.</i>",
+            parse_mode="HTML",
+        )
 
     # READ FROM DATABASE, NOT FROM SCRAPER
     current_offers, date_range, _ = database.load_cached_offers()
