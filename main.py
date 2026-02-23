@@ -16,9 +16,9 @@ from telegram.ext import (
 import scraper
 import database
 
-# load_dotenv()
+load_dotenv()
 
-REFRESH_INTERVAL_MINUTES = 15
+REFRESH_INTERVAL_MINUTES = 1
 VERSION_RELEASE = "1.2.1"
 
 logging.basicConfig(
@@ -71,6 +71,7 @@ async def scheduled_scan():
         logger.info(f"Found {len(new_offers)} new offers to notify")
         users = database.get_users()
         text = scraper.format_offer_message(new_offers)
+        print(f"Generated message:\n{text}")
         for user_id in users:
             try:
                 await app.bot.send_message(

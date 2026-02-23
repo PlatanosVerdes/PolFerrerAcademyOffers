@@ -85,11 +85,13 @@ def get_new_offers() -> Tuple[List[Dict], str]:
         # Process offers using list comprehension
         found_items = [_process_offer(item) for item in raw_offers_data]
 
-        summary = (
-            f"{len(found_items)} ofertas encontradas" if found_items else "Sin ofertas"
+        # TODO: Extract date range from the page if needed. For now, we return "unknown".
+        date_range = "unknown"
+
+        logger.info(
+            f"✅ Analysis complete. {f'{len(found_items)} ofertas encontradas' if found_items else 'Sin ofertas'}"
         )
-        logger.info(f"✅ Analysis complete. {summary}")
-        return found_items, summary
+        return found_items, date_range
 
     except requests.RequestException as e:
         logger.error(f"❌ Network error during scraping: {e}")
