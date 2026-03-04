@@ -1,6 +1,6 @@
 # 🏍️ Pol Ferrer Academy Offers Bot
 
-Telegram bot that automatically notifies you when new offers appear at Pol Ferrer Academy.
+Telegram bot that automatically notifies you when new offers appear at [Pol Ferrer Academy website](https://www.polferrer.com/).
 
 ## 🚀 What does it do?
 
@@ -49,3 +49,10 @@ This bot monitors the Pol Ferrer website and sends you an instant notification w
 docker build -t pol-offers-bot .
 docker run -d --name pol-bot --env-file .env pol-offers-bot
 ```
+---
+
+## Note for Pol
+
+This bot was built out of pure admiration and a slightly unhealthy refresh-button habit, not evil mastermind energy. 🫶
+
+If your offers start disappearing faster than usual… we promise it’s just enthusiasm. 🏍️💨
