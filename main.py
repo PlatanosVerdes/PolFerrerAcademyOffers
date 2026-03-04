@@ -71,7 +71,7 @@ async def scheduled_scan():
         logger.info(f"Found {len(new_offers)} new offers to notify")
         users = database.get_users()
         text = scraper.format_offer_message(new_offers)
-        print(f"Generated message:\n{text}")
+        
         for user_id in users:
             try:
                 await app.bot.send_message(
@@ -79,7 +79,7 @@ async def scheduled_scan():
                 )
             except Exception as e:
                 logger.error(f"Error sending message to {user_id}: {e}")
-        # Mark these offers as notified
+                
         database.mark_offers_as_notified(new_offer_ids)
     else:
         logger.info("Cron: No new offers found.")
@@ -94,13 +94,11 @@ async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         database.add_user(user_id)
         logger.info(f"Usuario {user_id} auto-suscrito al usar /offers")
 
-        # Le avisamos sutilmente de que le hemos suscrito para que no se asuste cuando le llegue el cron
         await update.message.reply_text(
             "✅ <i>He notado que no estabas en la lista de alertas. Te he suscrito automáticamente. Usa /stop si no quieres recibir avisos.</i>",
             parse_mode="HTML",
         )
 
-    # READ FROM DATABASE, NOT FROM SCRAPER
     current_offers, date_range, _ = database.load_cached_offers()
 
     logger.info(f"Loaded {len(current_offers)} current/future offers from cache")

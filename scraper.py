@@ -106,7 +106,7 @@ def format_offer_message(offers: List[Dict]) -> str:
     Formats the list of offers into an HTML message for Telegram.
     """
     if not offers:
-        return "🔎 No hay ofertas disponibles en este momento."
+        return f"🔎 No hay ofertas disponibles en este momento. Visita {BASE_URL} para ver todas las actividades."
 
     lines = ["🚨 <b>¡NUEVAS OFERTAS!</b> 🚨", ""]
 
