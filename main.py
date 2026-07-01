@@ -23,11 +23,13 @@ load_dotenv()
 # Scan on a random interval within this range to spread load and stay less predictable.
 REFRESH_MIN_MINUTES = 5
 REFRESH_MAX_MINUTES = 15
-VERSION_RELEASE = "1.4.0"
+VERSION_RELEASE = "1.4.1"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+# Quiet httpx: its INFO logs print request URLs, which include the bot token.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("Main")
 
 TOKEN = os.getenv("BOT_TOKEN")
