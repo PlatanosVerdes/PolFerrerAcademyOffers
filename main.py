@@ -1,10 +1,12 @@
+import asyncio
 import logging
 import os
-import aiocron
+import random
 from dotenv import load_dotenv
 
 # Importaciones de la BASE de la librería
 from telegram import BotCommand, Update
+from telegram.error import Forbidden
 
 # Importaciones de las EXTENSIONES
 from telegram.ext import (
@@ -18,8 +20,10 @@ import database
 
 load_dotenv()
 
-REFRESH_INTERVAL_MINUTES = 1
-VERSION_RELEASE = "1.3.0"
+# Scan on a random interval within this range to spread load and stay less predictable.
+REFRESH_MIN_MINUTES = 5
+REFRESH_MAX_MINUTES = 15
+VERSION_RELEASE = "1.4.0"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -36,16 +40,8 @@ if not TOKEN:
 app = None
 
 
-def generate_offer_id(offer):
-    """Generate a unique ID for an offer based on its details."""
-    return (
-        f"{offer.get('discipline', '')}_{offer.get('date', '')}_{offer.get('time', '')}"
-    )
-
-
-@aiocron.crontab(f"*/{REFRESH_INTERVAL_MINUTES} * * * *")
 async def scheduled_scan():
-    logger.info("Cron: Scanning for new offers...")
+    logger.info("Scanning for new offers...")
     all_items, date_range = scraper.get_new_offers()
 
     # Filter only offers (is_offer == True)
@@ -58,10 +54,10 @@ async def scheduled_scan():
     new_offers = []
     new_offer_ids = []
     for offer in offers:
-        offer_id = generate_offer_id(offer)
-        if offer_id not in notified_offer_ids:
+        oid = database.offer_id(offer)
+        if oid not in notified_offer_ids:
             new_offers.append(offer)
-            new_offer_ids.append(offer_id)
+            new_offer_ids.append(oid)
 
     # Save all offers (for the /offers command)
     database.save_offers(offers, date_range)
@@ -77,12 +73,27 @@ async def scheduled_scan():
                 await app.bot.send_message(
                     chat_id=user_id, text=text, parse_mode="HTML"
                 )
+            except Forbidden:
+                logger.info(f"User {user_id} blocked the bot; removing.")
+                database.remove_user(user_id)
             except Exception as e:
                 logger.error(f"Error sending message to {user_id}: {e}")
-                
+
         database.mark_offers_as_notified(new_offer_ids)
     else:
-        logger.info("Cron: No new offers found.")
+        logger.info("No new offers found.")
+
+
+async def _scan_loop():
+    """Run scheduled_scan forever, sleeping a random 5-15 min between runs."""
+    while True:
+        try:
+            await scheduled_scan()
+        except Exception as e:
+            logger.error(f"Scan loop error: {e}")
+        delay = random.randint(REFRESH_MIN_MINUTES, REFRESH_MAX_MINUTES) * 60
+        logger.info(f"Next scan in {delay // 60} min")
+        await asyncio.sleep(delay)
 
 
 async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -93,8 +104,7 @@ async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = database.get_users()
     was_subscribed = user_id in users
 
-    # Capture/refresh the user's display info silently on every /offers.
-    # Idempotent on the subscriber list, so it never changes what the user sees.
+    # Silently capture/refresh display info (idempotent, no user-facing change).
     database.add_user(
         user_id,
         username=tg_user.username if tg_user else None,
@@ -148,7 +158,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 <b>Pol Academy Offers Hunter</b>\n\n"
-        f"Este bot escanea la academia de Pol Ferrer cada {REFRESH_INTERVAL_MINUTES} minutos buscando ofertas.\n\n"
+        f"Este bot escanea la academia de Pol Ferrer cada {REFRESH_MIN_MINUTES}-{REFRESH_MAX_MINUTES} minutos buscando ofertas.\n\n"
         "<b>Comandos disponibles:</b>\n"
         "• /start - Suscribirse a las alertas automáticas.\n"
         "• /offers - Ver las ofertas activas actualmente.\n"
@@ -170,16 +180,12 @@ async def post_init(application):
     await application.bot.set_my_commands(commands)
     logger.info("✅ Commands set successfully.")
 
-    # Persistence sanity check: surface the resolved DB path and subscriber
-    # count on every startup, so a misconfigured volume mount is obvious in
-    # the logs (e.g. "0 subscribers" right after a redeploy) before it hurts.
+    # Log DB path + count so a broken volume mount is obvious on startup.
     db_path = os.path.abspath(database.DB_FILE_USERS)
     subscriber_count = len(database.get_users())
     logger.info(f"📂 Subscriber DB: {db_path} ({subscriber_count} subscribers loaded)")
 
-    # One-time backfill: fetch display info for existing subscribers who don't
-    # have it yet. get_chat() only reads data (no message is sent to the user),
-    # and it works because these users already started a chat with the bot.
+    # Backfill display info for existing subscribers (get_chat is read-only).
     known_info = database.get_users_info()
     for uid in database.get_users():
         if str(uid) in known_info:
@@ -193,6 +199,9 @@ async def post_init(application):
         except Exception as e:
             logger.warning(f"Could not backfill info for {uid}: {e}")
 
+    # Start the periodic scan loop (random 5-15 min interval).
+    asyncio.create_task(_scan_loop())
+
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
@@ -202,5 +211,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("offers", offers_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
 
-    logger.info("\Starting Offers Hunter Bot...")
+    logger.info("Starting Offers Hunter Bot...")
     app.run_polling()

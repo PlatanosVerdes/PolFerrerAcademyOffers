@@ -22,8 +22,7 @@ def _process_offer(raw_item: Dict) -> Dict[str, str]:
     Internal helper: Parses a single raw offer item, calculates the real price,
     and formats the date and time correctly.
     """
-    # 0. Schema guard: warn if the site changed the offer shape, so we notice
-    #    in the logs instead of silently sending malformed notifications.
+    # Warn (don't fail) if the site drops fields we depend on.
     for required in ("date", "cents"):
         if required not in raw_item:
             logger.warning(
@@ -39,8 +38,7 @@ def _process_offer(raw_item: Dict) -> Dict[str, str]:
     raw_date = raw_item.get("date", "")
     raw_hour = raw_item.get("hour")
 
-    # Discipline: prefer singular 'discipline'; fall back to a 'disciplines'
-    # array (the shape already used by the site's 'rates' block).
+    # Fall back to the 'disciplines' array used by the site's 'rates' block.
     discipline = raw_item.get("discipline")
     if discipline is None:
         disciplines = raw_item.get("disciplines")
@@ -89,6 +87,10 @@ def get_new_offers() -> Tuple[List[Dict], str]:
         response = requests.get(BASE_URL, headers=HEADERS, timeout=15)
         response.raise_for_status()
 
+        # An empty offers list is the normal "no offers" state, not an error.
+        if re.search(r'\\?"offers\\?":\s*\[\]', response.text):
+            return [], "no offers"
+
         # Extract the specific JSON block using Regex
         match = OFFERS_PATTERN.search(response.text)
 
@@ -125,12 +127,7 @@ def get_new_offers() -> Tuple[List[Dict], str]:
 
 
 def _week_url(offer: Dict) -> str:
-    """
-    Build the booking URL pointing at the offer's specific week.
-    The site's '?week=' param expects the Monday of that week (YYYY-MM-DD)
-    and renders the calendar client-side for that week.
-    Falls back to BASE_URL if the date can't be parsed.
-    """
+    """Booking URL for the offer's week ('?week=' expects that week's Monday)."""
     raw = offer.get("original_date") or offer.get("date", "")
     try:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))

@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 import logging
 from datetime import datetime
 
@@ -8,6 +9,26 @@ logger = logging.getLogger("Database")
 DB_PATH = "data"
 DB_FILE_USERS = os.path.join(DB_PATH, "database.json")
 DB_OFFERS_CACHE = os.path.join(DB_PATH, "offers_cache.json")
+
+
+def offer_id(offer):
+    """Stable unique ID for an offer (discipline + date + time)."""
+    return f"{offer.get('discipline', '')}_{offer.get('date', '')}_{offer.get('time', '')}"
+
+
+def _atomic_write(path, data):
+    """Write JSON via a temp file + rename so a crash can't corrupt the file."""
+    _setup()
+    directory = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
 
 
 def _setup():
@@ -19,13 +40,8 @@ def _setup():
 
 
 def add_user(user_id, username=None, first_name=None):
-    """Subscribe a user and, if provided, store display info separately.
-
-    The 'users' list keeps only chat IDs so all existing logic is untouched.
-    Identities live in a 'user_info' map keyed by the ID (as a string, since
-    JSON object keys must be strings). Safe to call for already-subscribed
-    users: it just refreshes their info without duplicating the ID.
-    """
+    """Subscribe a user; store display info in a separate 'user_info' map so
+    the 'users' list stays plain IDs. Safe to re-call to just refresh info."""
     data = _read()
     changed = False
 
@@ -78,10 +94,7 @@ def save_offers(offers, date_range):
     current_offers = [offer for offer in offers if _is_current_or_future_offer(offer)]
 
     # Generate IDs for current offers
-    current_offer_ids = set(
-        f"{offer.get('discipline', '')}_{offer.get('date', '')}_{offer.get('time', '')}"
-        for offer in current_offers
-    )
+    current_offer_ids = set(offer_id(offer) for offer in current_offers)
 
     # Preserve only notified IDs that correspond to current/future offers
     old_notified = []
@@ -102,8 +115,7 @@ def save_offers(offers, date_range):
         "notified_offers": cleaned_notified,
     }
 
-    with open(DB_OFFERS_CACHE, "w") as f:
-        json.dump(data, f)
+    _atomic_write(DB_OFFERS_CACHE, data)
 
 
 def load_cached_offers():
@@ -141,9 +153,7 @@ def _read():
 
 
 def _write(data):
-    _setup()
-    with open(DB_FILE_USERS, "w") as f:
-        json.dump(data, f)
+    _atomic_write(DB_FILE_USERS, data)
 
 
 def mark_offers_as_notified(offer_ids):
@@ -157,7 +167,6 @@ def mark_offers_as_notified(offer_ids):
         existing_notified = set(data.get("notified_offers", []))
         existing_notified.update(offer_ids)
         data["notified_offers"] = list(existing_notified)
-        with open(DB_OFFERS_CACHE, "w") as f:
-            json.dump(data, f)
+        _atomic_write(DB_OFFERS_CACHE, data)
     except:
         pass
