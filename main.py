@@ -155,6 +155,13 @@ async def post_init(application):
     await application.bot.set_my_commands(commands)
     logger.info("✅ Commands set successfully.")
 
+    # Persistence sanity check: surface the resolved DB path and subscriber
+    # count on every startup, so a misconfigured volume mount is obvious in
+    # the logs (e.g. "0 subscribers" right after a redeploy) before it hurts.
+    db_path = os.path.abspath(database.DB_FILE_USERS)
+    subscriber_count = len(database.get_users())
+    logger.info(f"📂 Subscriber DB: {db_path} ({subscriber_count} subscribers loaded)")
+
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
