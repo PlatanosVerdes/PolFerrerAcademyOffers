@@ -18,11 +18,35 @@ def _setup():
             json.dump({"users": [], "offers": []}, f)
 
 
-def add_user(user_id):
+def add_user(user_id, username=None, first_name=None):
+    """Subscribe a user and, if provided, store display info separately.
+
+    The 'users' list keeps only chat IDs so all existing logic is untouched.
+    Identities live in a 'user_info' map keyed by the ID (as a string, since
+    JSON object keys must be strings). Safe to call for already-subscribed
+    users: it just refreshes their info without duplicating the ID.
+    """
     data = _read()
+    changed = False
+
     if user_id not in data["users"]:
         data["users"].append(user_id)
+        changed = True
+
+    if username is not None or first_name is not None:
+        info = data.setdefault("user_info", {})
+        entry = {"username": username, "first_name": first_name}
+        if info.get(str(user_id)) != entry:
+            info[str(user_id)] = entry
+            changed = True
+
+    if changed:
         _write(data)
+
+
+def get_users_info():
+    """Return the stored {id: {username, first_name}} map (empty if none)."""
+    return _read().get("user_info", {})
 
 
 def remove_user(user_id):

@@ -19,7 +19,7 @@ import database
 load_dotenv()
 
 REFRESH_INTERVAL_MINUTES = 1
-VERSION_RELEASE = "1.2.1"
+VERSION_RELEASE = "1.3.0"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -87,11 +87,21 @@ async def scheduled_scan():
 
 async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
+    tg_user = update.effective_user
     logger.info(f"User {user_id} requested offers from database.")
 
     users = database.get_users()
-    if user_id not in users:
-        database.add_user(user_id)
+    was_subscribed = user_id in users
+
+    # Capture/refresh the user's display info silently on every /offers.
+    # Idempotent on the subscriber list, so it never changes what the user sees.
+    database.add_user(
+        user_id,
+        username=tg_user.username if tg_user else None,
+        first_name=tg_user.first_name if tg_user else None,
+    )
+
+    if not was_subscribed:
         logger.info(f"Usuario {user_id} auto-suscrito al usar /offers")
 
         await update.message.reply_text(
@@ -113,7 +123,12 @@ async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
-    database.add_user(user_id)
+    tg_user = update.effective_user
+    database.add_user(
+        user_id,
+        username=tg_user.username if tg_user else None,
+        first_name=tg_user.first_name if tg_user else None,
+    )
     await update.message.reply_text(
         f"✅ <b>¡Suscrito correctamente!</b> Te avisaré cuando detecte nuevas ofertas.\n\n"
         f"<i>Bot version: {VERSION_RELEASE}</i>",
@@ -161,6 +176,22 @@ async def post_init(application):
     db_path = os.path.abspath(database.DB_FILE_USERS)
     subscriber_count = len(database.get_users())
     logger.info(f"📂 Subscriber DB: {db_path} ({subscriber_count} subscribers loaded)")
+
+    # One-time backfill: fetch display info for existing subscribers who don't
+    # have it yet. get_chat() only reads data (no message is sent to the user),
+    # and it works because these users already started a chat with the bot.
+    known_info = database.get_users_info()
+    for uid in database.get_users():
+        if str(uid) in known_info:
+            continue
+        try:
+            chat = await application.bot.get_chat(uid)
+            database.add_user(
+                uid, username=chat.username, first_name=chat.first_name
+            )
+            logger.info(f"ℹ️ Backfilled info for {uid}: @{chat.username}")
+        except Exception as e:
+            logger.warning(f"Could not backfill info for {uid}: {e}")
 
 
 if __name__ == "__main__":
