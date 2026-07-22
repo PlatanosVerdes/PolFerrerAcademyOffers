@@ -23,7 +23,7 @@ load_dotenv()
 # Scan on a random interval within this range to spread load and stay less predictable.
 REFRESH_MIN_MINUTES = 5
 REFRESH_MAX_MINUTES = 15
-VERSION_RELEASE = "1.4.1"
+VERSION_RELEASE = "1.5.0"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -85,6 +85,45 @@ async def scheduled_scan():
     else:
         logger.info("No new offers found.")
 
+    await scan_events()
+
+
+async def scan_events():
+    logger.info("Scanning for events...")
+    events = scraper.get_new_events()
+
+    _, notified_event_ids = database.load_cached_events()
+
+    new_events = []
+    new_event_ids = []
+    for event in events:
+        eid = database.event_id(event)
+        if eid not in notified_event_ids:
+            new_events.append(event)
+            new_event_ids.append(eid)
+
+    database.save_events(events)
+
+    if new_events:
+        logger.info(f"Found {len(new_events)} new events to notify")
+        users = database.get_users()
+        text = scraper.format_event_message(new_events)
+
+        for user_id in users:
+            try:
+                await app.bot.send_message(
+                    chat_id=user_id, text=text, parse_mode="HTML"
+                )
+            except Forbidden:
+                logger.info(f"User {user_id} blocked the bot; removing.")
+                database.remove_user(user_id)
+            except Exception as e:
+                logger.error(f"Error sending message to {user_id}: {e}")
+
+        database.mark_events_as_notified(new_event_ids)
+    else:
+        logger.info("No new events found.")
+
 
 async def _scan_loop():
     """Run scheduled_scan forever, sleeping a random 5-15 min between runs."""
@@ -133,6 +172,31 @@ async def offers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="HTML")
 
 
+async def events_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
+    tg_user = update.effective_user
+    logger.info(f"User {user_id} requested events from database.")
+
+    was_subscribed = user_id in database.get_users()
+    database.add_user(
+        user_id,
+        username=tg_user.username if tg_user else None,
+        first_name=tg_user.first_name if tg_user else None,
+    )
+    if not was_subscribed:
+        logger.info(f"Usuario {user_id} auto-suscrito al usar /events")
+        await update.message.reply_text(
+            "✅ <i>He notado que no estabas en la lista de alertas. Te he suscrito automáticamente. Usa /stop si no quieres recibir avisos.</i>",
+            parse_mode="HTML",
+        )
+
+    current_events, _ = database.load_cached_events()
+    logger.info(f"Loaded {len(current_events)} current/future events from cache")
+
+    text = scraper.format_event_message(current_events)
+    await update.message.reply_text(text, parse_mode="HTML")
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     tg_user = update.effective_user
@@ -164,6 +228,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Comandos disponibles:</b>\n"
         "• /start - Suscribirse a las alertas automáticas.\n"
         "• /offers - Ver las ofertas activas actualmente.\n"
+        "• /events - Ver los eventos programados.\n"
         "• /stop - Dejar de recibir notificaciones.\n"
         "• /help - Mostrar este mensaje de ayuda.\n\n"
         f"<i>Version: {VERSION_RELEASE}</i>"
@@ -176,6 +241,7 @@ async def post_init(application):
     commands = [
         BotCommand("start", "Suscribirse a las alertas"),
         BotCommand("offers", "Ver ofertas actuales"),
+        BotCommand("events", "Ver eventos programados"),
         BotCommand("stop", "Cancelar suscripción"),
         BotCommand("help", "Información del bot"),
     ]
@@ -211,6 +277,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("offers", offers_cmd))
+    app.add_handler(CommandHandler("events", events_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
 
     logger.info("Starting Offers Hunter Bot...")

@@ -9,11 +9,17 @@ logger = logging.getLogger("Database")
 DB_PATH = "data"
 DB_FILE_USERS = os.path.join(DB_PATH, "database.json")
 DB_OFFERS_CACHE = os.path.join(DB_PATH, "offers_cache.json")
+DB_EVENTS_CACHE = os.path.join(DB_PATH, "events_cache.json")
 
 
 def offer_id(offer):
     """Stable unique ID for an offer (discipline + date + time)."""
     return f"{offer.get('discipline', '')}_{offer.get('date', '')}_{offer.get('time', '')}"
+
+
+def event_id(event):
+    """Stable unique ID for an event (its slug)."""
+    return event.get("slug", "")
 
 
 def _atomic_write(path, data):
@@ -168,5 +174,59 @@ def mark_offers_as_notified(offer_ids):
         existing_notified.update(offer_ids)
         data["notified_offers"] = list(existing_notified)
         _atomic_write(DB_OFFERS_CACHE, data)
+    except:
+        pass
+
+
+def _is_current_or_future_event(event):
+    """An event is still relevant until the day after its last date passes."""
+    try:
+        end_date = datetime.strptime(event.get("end_date", ""), "%Y-%m-%d").date()
+        return end_date >= datetime.now().date()
+    except (ValueError, TypeError):
+        # If date parsing fails, keep the event to be safe.
+        return True
+
+
+def save_events(events):
+    current = [e for e in events if _is_current_or_future_event(e)]
+    current_ids = set(event_id(e) for e in current)
+
+    old_notified = []
+    if os.path.exists(DB_EVENTS_CACHE):
+        try:
+            with open(DB_EVENTS_CACHE, "r") as f:
+                old_notified = json.load(f).get("notified_events", [])
+        except Exception as e:
+            logger.warning(f"Failed to read {DB_EVENTS_CACHE}: {e}")
+
+    cleaned_notified = [nid for nid in old_notified if nid in current_ids]
+    _atomic_write(
+        DB_EVENTS_CACHE,
+        {"events": current, "notified_events": cleaned_notified},
+    )
+
+
+def load_cached_events():
+    """Load cached events, keeping only current and upcoming ones."""
+    if not os.path.exists(DB_EVENTS_CACHE):
+        return [], []
+    with open(DB_EVENTS_CACHE, "r") as f:
+        data = json.load(f)
+    current = [e for e in data.get("events", []) if _is_current_or_future_event(e)]
+    return current, data.get("notified_events", [])
+
+
+def mark_events_as_notified(event_ids):
+    """Mark events as already notified to avoid duplicate alerts."""
+    if not os.path.exists(DB_EVENTS_CACHE):
+        return
+    try:
+        with open(DB_EVENTS_CACHE, "r") as f:
+            data = json.load(f)
+        existing = set(data.get("notified_events", []))
+        existing.update(event_ids)
+        data["notified_events"] = list(existing)
+        _atomic_write(DB_EVENTS_CACHE, data)
     except:
         pass
