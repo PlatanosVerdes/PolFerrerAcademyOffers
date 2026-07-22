@@ -4,14 +4,15 @@ Telegram bot that automatically notifies you when new offers appear at [Pol Ferr
 
 ## 🚀 What does it do?
 
-This bot monitors the Pol Ferrer website and sends you an instant notification when it detects new available offers.
+This bot monitors the Pol Ferrer website and sends you an instant notification when it detects new available offers or scheduled events (courses, campuses, etc.).
 
-**Never miss an offer again!**
+**Never miss an offer or event again!**
 
 ## 📱 Commands
 
 - `/start` - Subscribe to receive automatic alerts
 - `/offers` - View currently available offers
+- `/events` - View scheduled events
 - `/stop` - Cancel subscription
 - `/help` - Help and bot information
 
