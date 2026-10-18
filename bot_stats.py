@@ -1,5 +1,5 @@
-"""Who uses the bot, how much, and what it turned away, served as the /bot-stats document muninn
-reads (https://github.com/PlatanosVerdes/gonana#botstats-the-bot-stats-contract).
+"""Who uses the bot, how much, and what it turned away, exposed as the /bot-stats document
+(https://github.com/PlatanosVerdes/gonana#botstats-the-bot-stats-contract).
 
 The people are kept on disk, written once a minute at most; the minute counts start over on
 restart. Serve it on a port that is never published: the people list holds names.

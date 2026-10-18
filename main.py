@@ -43,14 +43,14 @@ if not TOKEN:
 # Global application instance
 app = None
 
-# Where muninn reads who uses the bot. It lists names: a port that is never published.
+# Exposes /bot-stats when set. It lists names: never publish it.
 STATS_ADDR = os.getenv("BOT_STATS_ADDR", "")
 BOT_NAME = os.getenv("BOT_NAME", "")
 stats = None
 
 
 async def count_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Count every update before any command sees it, for muninn."""
+    """Count every update before any command handles it."""
     user = update.effective_user
     if stats and user:
         stats.message(user.id, " ".join(filter(None, [user.first_name, user.last_name])), user.username)
