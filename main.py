@@ -13,10 +13,12 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     ContextTypes,
+    TypeHandler,
 )
 
 import scraper
 import database
+from bot_stats import Recorder
 
 load_dotenv()
 
@@ -40,6 +42,26 @@ if not TOKEN:
 
 # Global application instance
 app = None
+
+# Exposes /bot-stats when set. It lists names: never publish it.
+STATS_ADDR = os.getenv("BOT_STATS_ADDR", "")
+BOT_NAME = os.getenv("BOT_NAME", "")
+stats = None
+
+
+async def count_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Count every update before any command handles it."""
+    user = update.effective_user
+    if stats and user:
+        stats.message(user.id, " ".join(filter(None, [user.first_name, user.last_name])), user.username)
+
+
+def stats_about():
+    extra = [
+        {"label": "Subscribers", "value": str(len(database.get_users()))},
+        {"label": "Current offers", "value": str(len(database.load_cached_offers()[0]))},
+    ]
+    return "telegram", BOT_NAME, "Pol Academy Offers", extra
 
 
 async def scheduled_scan():
@@ -273,6 +295,11 @@ async def post_init(application):
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
+
+    if STATS_ADDR:
+        stats = Recorder(os.path.join(database.DB_PATH, "bot-stats.json"))
+        stats.serve(STATS_ADDR, stats_about)
+        app.add_handler(TypeHandler(Update, count_update), group=-1)
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stop", stop))

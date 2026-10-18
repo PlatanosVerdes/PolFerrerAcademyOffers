@@ -37,7 +37,14 @@ This bot monitors the Pol Ferrer website and sends you an instant notification w
 
    ```env
    BOT_TOKEN=your_telegram_token
+   # Optional: expose the bot's stats, and the username they name
+   # BOT_STATS_ADDR=:9180
+   # BOT_NAME=PolAcademyOffersBot
    ```
+
+   With `BOT_STATS_ADDR` set, every update is counted (`bot_stats.py`) and exposed as the
+   [/bot-stats document](https://github.com/PlatanosVerdes/gonana#botstats-the-bot-stats-contract).
+   It lists names: never publish that port. The people are kept in `data/bot-stats.json`.
 
 4. **Run**
    ```bash
