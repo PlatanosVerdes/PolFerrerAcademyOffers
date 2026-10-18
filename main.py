@@ -25,7 +25,7 @@ load_dotenv()
 # Scan on a random interval within this range to spread load and stay less predictable.
 REFRESH_MIN_MINUTES = 5
 REFRESH_MAX_MINUTES = 15
-VERSION_RELEASE = "1.5.0"
+VERSION_RELEASE = os.getenv("APP_VERSION", "local")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -253,7 +253,9 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /events - Ver los eventos programados.\n"
         "• /stop - Dejar de recibir notificaciones.\n"
         "• /help - Mostrar este mensaje de ayuda.\n\n"
-        f"<i>Version: {VERSION_RELEASE}</i>"
+        '<a href="https://t.me/PolFerrerAcademyOffersBot">Pol Academy Offers</a> '
+        f'<a href="https://github.com/PlatanosVerdes/PolFerrerAcademyOffers">{VERSION_RELEASE}</a> · '
+        'hecho por <a href="https://github.com/PlatanosVerdes">@PlatanosVerdes</a>'
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
