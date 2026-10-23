@@ -1,4 +1,13 @@
-# 🏍️ Pol Ferrer Academy Offers Bot
+<p align="center">
+  <img src="assets/icon.svg" width="96" alt="">
+</p>
+
+<h1 align="center">Pol Ferrer Academy Offers Bot</h1>
+
+<p align="center">
+  <a href="https://github.com/PlatanosVerdes/PolFerrerAcademyOffers/tags"><img src="https://img.shields.io/github/v/tag/PlatanosVerdes/PolFerrerAcademyOffers?label=release&color=2f7d3a" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/python-3-3776ab?logo=python&logoColor=white" alt="Python">
+</p>
 
 Telegram bot that automatically notifies you when new offers appear at [Pol Ferrer Academy website](https://www.polferrer.com/).
 
